@@ -84,6 +84,10 @@ If you have found an issue, please report it in the GitHub project.
 
 Please review the ["CHANGELOG"](CHANGELOG)
 
+<b>Recommendations</b>
+To avoid logging requests that are not relevant, it is recommended to check 'in scope items only' in the configuration section.
+Similarly, send only the fields you need (configurable with the exported fields)
+
 Development
 ----------
  In case you want to check what would be received, you can start a local server with:
