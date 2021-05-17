@@ -1,32 +1,27 @@
 package com.nccgroup.loggerplusplus.exports;
 
-import static com.nccgroup.loggerplusplus.util.Globals.PREF_COBALT_ADDRESS;
-import static com.nccgroup.loggerplusplus.util.Globals.PREF_COBALT_AUTOSTART_GLOBAL;
-import static com.nccgroup.loggerplusplus.util.Globals.PREF_COBALT_AUTOSTART_PROJECT;
-import static com.nccgroup.loggerplusplus.util.Globals.PREF_COBALT_DELAY;
+import com.coreyd97.BurpExtenderUtilities.Alignment;
+import com.coreyd97.BurpExtenderUtilities.ComponentGroup;
+import com.coreyd97.BurpExtenderUtilities.PanelBuilder;
+import com.coreyd97.BurpExtenderUtilities.Preferences;
+import com.nccgroup.loggerplusplus.LoggerPlusPlus;
+import com.nccgroup.loggerplusplus.filter.logfilter.LogFilter;
+import com.nccgroup.loggerplusplus.filter.parser.ParseException;
+import com.nccgroup.loggerplusplus.filterlibrary.FilterLibraryController;
+import com.nccgroup.loggerplusplus.logentry.LogEntryField;
+import com.nccgroup.loggerplusplus.util.Globals;
+import com.nccgroup.loggerplusplus.util.MoreHelp;
+import org.apache.commons.lang3.StringUtils;
 
-import java.awt.BorderLayout;
-import java.awt.Frame;
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.List;
 import java.util.Objects;
 
-import javax.swing.AbstractAction;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JSpinner;
-import javax.swing.JTextField;
-import javax.swing.SpinnerNumberModel;
-
-import com.coreyd97.BurpExtenderUtilities.Alignment;
-import com.coreyd97.BurpExtenderUtilities.PanelBuilder;
-import com.coreyd97.BurpExtenderUtilities.Preferences;
-import com.nccgroup.loggerplusplus.logentry.LogEntryField;
-import com.nccgroup.loggerplusplus.util.MoreHelp;
+import static com.nccgroup.loggerplusplus.util.Globals.*;
 
 public class CobaltExporterConfigDialog extends JDialog {
 
@@ -63,6 +58,25 @@ public class CobaltExporterConfigDialog extends JDialog {
             }
         });
 
+
+        String projectPreviousFilterString = preferences.getSetting(Globals.PREF_ELASTIC_FILTER_PROJECT_PREVIOUS);
+        String filterString = preferences.getSetting(Globals.PREF_ELASTIC_FILTER);
+        if (projectPreviousFilterString != null && !Objects.equals(projectPreviousFilterString, filterString)) {
+            int res = JOptionPane.showConfirmDialog(LoggerPlusPlus.instance.getLoggerFrame(),
+                    "Looks like the log filter has been changed since you last used this Burp project.\n" +
+                            "Do you want to restore the previous filter used by the project?\n" +
+                            "\n" +
+                            "Previously used filter: " + projectPreviousFilterString + "\n" +
+                            "Current filter: " + filterString, "CobaltSearch Exporter Log Filter",
+                    JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (res == JOptionPane.YES_OPTION) {
+                preferences.setSetting(PREF_ELASTIC_FILTER, projectPreviousFilterString);
+            }
+        }
+
+        JTextField filterField = PanelBuilder.createPreferenceTextField(preferences, PREF_ELASTIC_FILTER);
+        filterField.setMinimumSize(new Dimension(600, 0));
+
         JCheckBox autostartGlobal = PanelBuilder.createPreferenceCheckBox(preferences, PREF_COBALT_AUTOSTART_GLOBAL);
         JCheckBox autostartProject = PanelBuilder.createPreferenceCheckBox(preferences, PREF_COBALT_AUTOSTART_PROJECT);
 
@@ -77,11 +91,18 @@ public class CobaltExporterConfigDialog extends JDialog {
             }
         });
 
+//        new JComponent[]{new JLabel("Address: "), addressField},
+//                new JComponent[]{new JLabel("Port: "), cobaltPortSpinner},
+//                new JComponent[]{new JLabel("Protocol: "), protocolSelector},
 
-        this.add(PanelBuilder.build(new JComponent[][]{
-                new JComponent[]{new JLabel("Address: "), addressField},
+        ComponentGroup connectionGroup = new ComponentGroup(ComponentGroup.Orientation.VERTICAL, "Connection");
+        connectionGroup.addComponentWithLabel("Address: ", addressField);
+
+        ComponentGroup miscGroup = new ComponentGroup(ComponentGroup.Orientation.VERTICAL, "Misc");
+        miscGroup.add(PanelBuilder.build(new Component[][]{
                 new JComponent[]{new JLabel("Upload Frequency (Seconds): "), cobaltDelaySpinner},
                 new JComponent[]{new JLabel("Exported Fields: "), configureFieldsButton},
+                new JComponent[]{new JLabel("Log Filter: "), filterField},
                 new JComponent[]{new JLabel("Autostart Exporter (All Projects): "), autostartGlobal},
                 new JComponent[]{new JLabel("Autostart Exporter (This Project): "), autostartProject},
         }, new int[][]{
@@ -89,12 +110,45 @@ public class CobaltExporterConfigDialog extends JDialog {
                 new int[]{0, 1},
                 new int[]{0, 1},
                 new int[]{0, 1},
-                new int[]{0, 1},
-                new int[]{0, 1},
+                new int[]{0, 1}
+        }, Alignment.FILL, 1, 1));
+
+
+        this.add(PanelBuilder.build(new JComponent[][]{
+                new JComponent[]{connectionGroup},
+                new JComponent[]{miscGroup}
+        }, new int[][]{
+                new int[]{1},
+                new int[]{1},
+                new int[]{1},
         }, Alignment.CENTER, 1.0, 1.0, 5, 5), BorderLayout.CENTER);
+
+        this.setMinimumSize(new Dimension(600, 200));
 
         this.pack();
         this.setResizable(true);
-        this.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        this.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+
+        this.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                String logFilter = preferences.getSetting(PREF_ELASTIC_FILTER);
+
+                if (!StringUtils.isBlank(logFilter)) {
+                    FilterLibraryController libraryController = cobaltExporter.getExportController()
+                            .getLoggerPlusPlus().getLibraryController();
+                    try {
+                        new LogFilter(libraryController, logFilter);
+                    } catch (ParseException ex) {
+                        JOptionPane.showMessageDialog(CobaltExporterConfigDialog.this,
+                                "Cannot save Cobalt Exporter configuration. The chosen log filter is invalid: \n" +
+                                        ex.getMessage(), "Invalid Cobalt Exporter Configuration", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                }
+                CobaltExporterConfigDialog.this.dispose();
+                super.windowClosing(e);
+            }
+        });
     }
 }
