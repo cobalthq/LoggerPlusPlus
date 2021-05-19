@@ -72,6 +72,12 @@ public class Globals {
     public static final String PREF_PREVIOUS_ELASTIC_FIELDS = "previousElasticFields";
     public static final String PREF_SAVED_FIELD_SELECTIONS = "savedFieldSelections";
     public static final String PREF_COLUMNS_VERSION = "columnsVersion";
+    public static final String PREF_COBALT_ADDRESS = "cobaltAddress";
+    public static final String PREF_COBALT_DELAY = "cobaltDelay";
+    public static final String PREF_COBALT_INCLUDE_REQ_RESP = "cobaltIncludeReqResp";
+    public static final String PREF_COBALT_AUTOSTART_GLOBAL = "cobaltAutostartGlobal";
+    public static final String PREF_COBALT_AUTOSTART_PROJECT = "cobaltAutostartProject";
+    public static final String PREF_PREVIOUS_COBALT_FIELDS = "previousCobaltFields";
 
     public enum ElasticAuthType {ApiKey, Basic, None}
 
