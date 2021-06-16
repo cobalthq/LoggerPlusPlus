@@ -8,7 +8,7 @@ import static com.nccgroup.loggerplusplus.logentry.LogEntryField.*;
 
 public class Globals {
     public static final String APP_NAME = "Logger++";
-    public static final double VERSION = 3.19;
+    public static final String VERSION = "3.19.1";
     public static final String AUTHOR = "Corey Arthur (@CoreyD97), Soroush Dalili (@irsdl) from NCC Group";
     public static final String TWITTER_URL = "https://twitter.com/CoreyD97";
     public static final String IRSDL_TWITTER_URL = "https://twitter.com/irsdl";
@@ -25,7 +25,6 @@ public class Globals {
     public static final String PREF_LOG_TABLE_SETTINGS = "tabledetailsjson";
     public static final String PREF_LOG_LEVEL = "logLevel";
     public static final String PREF_LOG_TO_CONSOLE = "logToConsole";
-    public static final String PREF_DEPRECATED_IS_DEBUG = "isDebug";
     public static final String PREF_UPDATE_ON_STARTUP = "updateonstartup";
     public static final String PREF_ENABLED = "enabled";
     public static final String PREF_RESTRICT_TO_SCOPE = "restricttoscope";
@@ -39,6 +38,7 @@ public class Globals {
     public static final String PREF_LOG_EXTENDER = "logextender";
     public static final String PREF_LOG_TARGET_TAB = "logtargettab";
     public static final String PREF_COLOR_FILTERS = "colorfilters";
+    public static final String PREF_TAG_FILTERS = "tagfilters";
     public static final String PREF_SAVED_FILTERS = "savedfilters";
     public static final String PREF_SORT_COLUMN = "sortcolumn";
     public static final String PREF_SORT_ORDER = "sortorder";
@@ -86,10 +86,11 @@ public class Globals {
             "\"filter\":{\"filter\":\"Request.Complete == False\"},\"filterString\":\"Request.Complete == False\",\"backgroundColor\":{\"value\":-16777216,\"falpha\":0.0}," +
             "\"foregroundColor\":{\"value\":-65536,\"falpha\":0.0},\"enabled\":true,\"modified\":false,\"shouldRetest\":true,\"priority\":1}}";
 
-    public static final int CURRENT_COLUMN_VERSION = 4;
+    public static final int CURRENT_COLUMN_VERSION = 5;
     private static int colOrder = 0;
     public static final String DEFAULT_LOG_TABLE_COLUMNS_JSON = new StringBuilder().append("[")
             .append("{'id':" + NUMBER + ",'name':'Number','defaultVisibleName':'#','visibleName':'#','preferredWidth':65,'readonly':true,'order':" + colOrder++ + ",'visible':true,'description':'" + StringEscapeUtils.escapeJson(NUMBER.getDescription()) + "'},")
+            .append("{'id':" + TAGS + ",'name':'Tags','defaultVisibleName':'Tags','visibleName':'Tags','preferredWidth':100,'readonly':true,'order':" + colOrder++ + ",'visible':true,'description':'" + StringEscapeUtils.escapeJson(TAGS.getDescription()) + "'},")
             .append("{'id':" + COMPLETE + ",'name':'Complete','defaultVisibleName':'Complete','visibleName':'Complete','preferredWidth':80,'readonly':true,'order':" + colOrder++ + ",'visible':true,'description':'" + StringEscapeUtils.escapeJson(COMPLETE.getDescription()) + "'},")
             .append("{'id':" + PROXY_TOOL + ",'name':'Tool','defaultVisibleName':'Tool','visibleName':'Tool','preferredWidth':70,'readonly':true,'order':" + colOrder++ + ",'visible':true,'description':'" + StringEscapeUtils.escapeJson(PROXY_TOOL.getDescription()) + "'},")
             .append("{'id':" + ISSSL + ",'name':'IsSSL','defaultVisibleName':'SSL','visibleName':'SSL','preferredWidth':50,'readonly':true,'order':" + colOrder++ + ",'visible':false,'description':'" + StringEscapeUtils.escapeJson(ISSSL.getDescription()) + "'},")
