@@ -190,7 +190,10 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
         for(LogEntry logEntry : entriesInBulk) {
             JsonObject jsonObject = new JsonObject();
             for (LogEntryField field : this.fields) {
-                jsonObject.addProperty(field.getFullLabel(), formatValue(logEntry.getValueByKey(field)));
+                Object value = logEntry.getValueByKey(field);
+                if (value != null) {
+                    jsonObject.addProperty(field.getFullLabel(), formatValue(value));
+                }
             }
             jsonArray.add(jsonObject);
         }
@@ -200,7 +203,6 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
     }
 
     private String formatValue(Object value){
-        Gson gson = exportController.getLoggerPlusPlus().getGsonProvider().getGson();
         if (value instanceof java.net.URL) {
             return String.valueOf((java.net.URL) value);
         } else if  (value instanceof String) {
