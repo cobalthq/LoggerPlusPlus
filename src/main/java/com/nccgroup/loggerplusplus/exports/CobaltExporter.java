@@ -3,22 +3,21 @@ package com.nccgroup.loggerplusplus.exports;
 import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import javax.swing.JComponent;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 
 import com.coreyd97.BurpExtenderUtilities.Preferences;
-import com.google.gson.ExclusionStrategy;
-import com.google.gson.FieldAttributes;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.nccgroup.loggerplusplus.LoggerPlusPlus;
@@ -39,7 +38,6 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 
 public class CobaltExporter extends AutomaticLogExporter implements ExportPanelProvider, ContextMenuExportProvider {
 
@@ -50,6 +48,7 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
     private String indexName;
     private ScheduledFuture indexTask;
     private int connectFailedCounter;
+    private final int UPLOAD_BATCH_SIZE = 50;
 
     private final ScheduledExecutorService executorService;
     private final CobaltExporterControlPanel controlPanel;
@@ -107,13 +106,13 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
 
         pendingEntries = new ArrayList<>();
         int delay = preferences.getSetting(Globals.PREF_COBALT_DELAY);
-        indexTask = executorService.scheduleAtFixedRate(this::indexPendingEntries, delay, delay, TimeUnit.SECONDS);
+        indexTask = executorService.scheduleWithFixedDelay(this::indexPendingEntries, delay, delay, TimeUnit.SECONDS);
         LoggerPlusPlus.callbacks.printOutput("Cobalt Logger++ initialized successfully");
     }
 
     @Override
     public void exportNewEntry(final LogEntry logEntry) {
-        if(logEntry.getStatus() == Status.PROCESSED) {
+        if (logEntry.getStatus() == Status.PROCESSED) {
             if (logFilter != null && !logFilter.matches(logEntry)) return;
             pendingEntries.add(logEntry);
         }
@@ -121,7 +120,7 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
 
     @Override
     public void exportUpdatedEntry(final LogEntry updatedEntry) {
-        if(updatedEntry.getStatus() == Status.PROCESSED) {
+        if (updatedEntry.getStatus() == Status.PROCESSED) {
             if (logFilter != null && !logFilter.matches(updatedEntry)) return;
             pendingEntries.add(updatedEntry);
         }
@@ -129,7 +128,7 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
 
     @Override
     void shutdown() throws Exception {
-        if(this.indexTask != null){
+        if (this.indexTask != null) {
             indexTask.cancel(true);
         }
         this.pendingEntries = null;
@@ -145,9 +144,7 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
         return null;
     }
 
-    private void indexPendingEntries(){
-        LoggerPlusPlus.callbacks.printOutput("Uploading pending log entries ("+this.pendingEntries.size()+")...");
-
+    private void indexPendingEntries() {
         try {
             if (this.pendingEntries.size() == 0) return;
 
@@ -158,36 +155,52 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
             }
 
             String address = preferences.getSetting(Globals.PREF_COBALT_ADDRESS);
+            Collection<List<LogEntry>> batchEntries = splitPendingEntries(entriesInBulk);
             HttpPost post = new HttpPost(address);
-            post.setEntity(buildRequestBody(entriesInBulk));
 
-            try {
-                CloseableHttpResponse response = httpClient.execute(post);
-                int statusCode = response.getStatusLine().getStatusCode();
+            for (List<LogEntry> entries : batchEntries) {
+                try {
+                    LoggerPlusPlus.callbacks.printOutput("Uploading pending log entries (" + entries.size() + ")...");
+                    post.setEntity(buildRequestBody((ArrayList<LogEntry>) entries));
+                    CloseableHttpResponse response = httpClient.execute(post);
+                    int statusCode = response.getStatusLine().getStatusCode();
 
-                LoggerPlusPlus.callbacks.printOutput("Upload finished with status code " + statusCode);
-                if (statusCode >=400) {
-                    LoggerPlusPlus.callbacks.printOutput(EntityUtils.toString(response.getEntity()));
-                }
-                connectFailedCounter = 0;
-            } catch (ConnectException e) {
-                LoggerPlusPlus.callbacks.printError("Connection error, upload failed");
-                connectFailedCounter++;
-                if(connectFailedCounter > 5) {
-                    JOptionPane.showMessageDialog(JOptionPane.getFrameForComponent(LoggerPlusPlus.instance.getLoggerMenu()),
-                            "Cobalt exporter could not connect after 5 attempts. Elastic exporter shutting down...",
-                            "Cobalt Exporter - Connection Failed", JOptionPane.ERROR_MESSAGE);
-                    shutdown();
+                    LoggerPlusPlus.callbacks.printOutput("Upload finished with status code " + statusCode);
+                    if (statusCode >= 400) {
+                        LoggerPlusPlus.callbacks.printOutput(EntityUtils.toString(response.getEntity()));
+                    }
+                    connectFailedCounter = 0;
+                } catch (ConnectException e) {
+                    LoggerPlusPlus.callbacks.printError("Connection error, upload failed");
+                    connectFailedCounter++;
+                    if (connectFailedCounter > 5) {
+                        JOptionPane.showMessageDialog(JOptionPane.getFrameForComponent(LoggerPlusPlus.instance.getLoggerMenu()),
+                                "Cobalt exporter could not connect after 5 attempts. Elastic exporter shutting down...",
+                                "Cobalt Exporter - Connection Failed", JOptionPane.ERROR_MESSAGE);
+                        shutdown();
+                    }
+                } catch (Exception e) {
+                    LoggerPlusPlus.callbacks.printError("Upload failed: " + e.getMessage());
+                } finally {
+                    post.releaseConnection();
                 }
             }
-        }catch (Exception e){
-                LoggerPlusPlus.callbacks.printError("Upload failed: " + ExceptionUtils.getStackTrace(e));
+        } catch (Exception e) {
+            LoggerPlusPlus.callbacks.printError("Upload failed: " + ExceptionUtils.getStackTrace(e));
         }
+    }
+
+    private Collection<List<LogEntry>> splitPendingEntries(ArrayList<LogEntry> entriesInBulk) {
+        AtomicInteger counter = new AtomicInteger();
+        return entriesInBulk
+                .stream()
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / UPLOAD_BATCH_SIZE))
+                .values();
     }
 
     private StringEntity buildRequestBody(ArrayList<LogEntry> entriesInBulk) throws UnsupportedEncodingException {
         JsonArray jsonArray = new JsonArray();
-        for(LogEntry logEntry : entriesInBulk) {
+        for (LogEntry logEntry : entriesInBulk) {
             JsonObject jsonObject = new JsonObject();
             for (LogEntryField field : this.fields) {
                 Object value = logEntry.getValueByKey(field);
@@ -202,11 +215,11 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
         return body;
     }
 
-    private String formatValue(Object value){
+    private String formatValue(Object value) {
         if (value instanceof java.net.URL) {
             return String.valueOf((java.net.URL) value);
-        } else if  (value instanceof String) {
-            return (String)value;
+        } else if (value instanceof String) {
+            return (String) value;
         } else {
             return value.toString();
         }
