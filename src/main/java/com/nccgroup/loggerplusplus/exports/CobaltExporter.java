@@ -169,6 +169,7 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
                     if (statusCode >= 400) {
                         LoggerPlusPlus.callbacks.printOutput(EntityUtils.toString(response.getEntity()));
                     }
+                    response.close();
                     connectFailedCounter = 0;
                 } catch (ConnectException e) {
                     LoggerPlusPlus.callbacks.printError("Connection error, upload failed");
