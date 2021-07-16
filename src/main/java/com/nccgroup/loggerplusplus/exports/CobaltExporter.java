@@ -160,7 +160,7 @@ public class CobaltExporter extends AutomaticLogExporter implements ExportPanelP
 
             for (List<LogEntry> entries : batchEntries) {
                 try {
-                    LoggerPlusPlus.callbacks.printOutput("Uploading pending log entries (" + entries.size() + ")...");
+                    LoggerPlusPlus.callbacks.printOutput("Uploading 1 message with " + entries.size() + " log entries...");
                     post.setEntity(buildRequestBody((ArrayList<LogEntry>) entries));
                     CloseableHttpResponse response = httpClient.execute(post);
                     int statusCode = response.getStatusLine().getStatusCode();
